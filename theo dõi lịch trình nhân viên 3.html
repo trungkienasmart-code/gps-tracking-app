@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Hệ Thống Định Vị Tuyến Bán Hàng</title>
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    :root {
+      --primary: #0284c7;
+      --success: #16a34a;
+      --danger: #dc2626;
+      --dark: #0f172a;
+      --light: #f8fafc;
+      --border: #e2e8f0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--light); color: var(--dark); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+    
+    /* Login Screen */
+    #authScreen { display: flex; align-items: center; justify-content: center; height: 100vh; padding: 16px; }
+    .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); width: 100%; max-width: 400px; }
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+    .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; }
+    .btn { width: 100%; padding: 10px; background: var(--primary); color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; }
+    .btn:hover { opacity: 0.9; }
+    .btn-danger { background: var(--danger); }
+    .btn-success { background: var(--success); }
+
+    /* Header */
+    #appScreen { display: none; height: 100vh; flex-direction: column; }
+    header { background: white; padding: 8px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; z-index: 1000; }
+    
+    /* Main Layout */
+    .main-layout { display: flex; flex: 1; position: relative; overflow: hidden; }
+    
+    /* Sidebar / Drawer */
+    .sidebar { width: 340px; background: white; border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 999; transition: transform 0.3s ease; }
+    .tabs { display: flex; border-bottom: 1px solid var(--border); background: #f8fafc; }
+    .tab-btn { flex: 1; padding: 10px 6px; background: none; border: none; font-weight: 600; font-size: 12px; cursor: pointer; color: #64748b; }
+    .tab-btn.active { color: var(--primary); border-bottom: 2px solid var(--primary); background: white; }
+    .tab-content { padding: 14px; flex: 1; overflow-y: auto; display: none; }
+    .tab-content.active { display: block; }
+    
+    /* Map */
+    #map { flex: 1; height: 100%; z-index: 1; }
+
+    /* Custom Label trên bản đồ */
+    .custom-staff-label {
+      background: rgba(15, 23, 42, 0.85) !important;
+      color: #ffffff !important;
+      border: none !important;
+      border-radius: 4px !important;
+      font-size: 11px !important;
+      font-weight: 600 !important;
+      padding: 2px 6px !important;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
+      white-space: nowrap;
+    }
+    .custom-staff-label::before {
+      border-top-color: rgba(15, 23, 42, 0.85) !important;
+    }
+
+    /* Nút Toggle Menu */
+    #togglePanelBtn {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      z-index: 1001;
+      background: white;
+      color: var(--dark);
+      border: 1px solid var(--border);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Staff Mobile Panel */
+    #staffPanel { padding: 12px; background: #f0fdf4; border-bottom: 1px solid #bbf7d0; text-align: center; }
+    .badge { display: inline-block; padding: 3px 8px; border-radius: 10px; font-size: 11px; font-weight: bold; }
+    .badge-online { background: #dcfce7; color: var(--success); }
+    .badge-offline { background: #fee2e2; color: var(--danger); }
+    
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+    th, td { border: 1px solid var(--border); padding: 6px; text-align: left; }
+    th { background: #f1f5f9; }
+
+    /* Responsive Mobile */
+    @media (max-width: 768px) {
+      .sidebar {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 65vh;
+        border-right: none;
+        border-top: 2px solid var(--border);
+        box-shadow: 0 -4px 12px rgba(0,0,0,0.15);
+        transform: translateY(0);
+      }
+      .sidebar.collapsed {
+        transform: translateY(100%);
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 1. MÀN HÌNH ĐĂNG NHẬP -->
+  <div id="authScreen">
+    <div class="card">
+      <h2 style="margin-bottom: 6px; text-align: center; color: var(--primary);">Đăng Nhập</h2>
+      <p style="font-size: 13px; color: #64748b; text-align: center; margin-bottom: 16px;">Hệ thống theo dõi tuyến bán hàng</p>
+      <div class="form-group">
+        <label>Tên đăng nhập</label>
+        <input type="text" id="loginUser" placeholder="Nhập username">
+      </div>
+      <div class="form-group">
+        <label>Mật khẩu (Mã PIN)</label>
+        <input type="password" id="loginPass" placeholder="Nhập mật khẩu">
+      </div>
+      <button class="btn" onclick="handleLogin()">Đăng Nhập</button>
+      <div id="loginMsg" style="margin-top: 10px; color: var(--danger); font-size: 12px; text-align: center;"></div>
+    </div>
+  </div>
+
+  <!-- 2. MÀN HÌNH CHÍNH -->
+  <div id="appScreen">
+    <header>
+      <div>
+        <strong id="appName" style="font-size: 14px;">Tracking System</strong>
+        <span id="userBadge" style="font-size: 12px; margin-left: 6px; color: #64748b;"></span>
+      </div>
+      <button class="btn btn-danger" style="width: auto; padding: 4px 10px; font-size: 12px;" onclick="logout()">Đăng Xuất</button>
+    </header>
+
+    <div class="main-layout">
+      <!-- Nút Ẩn/Hiện Menu -->
+      <button id="togglePanelBtn" onclick="toggleSidebar()">
+        <span>☰</span> <span>Ẩn/Hiện Bảng Menu</span>
+      </button>
+
+      <!-- Sidebar -->
+      <div class="sidebar" id="mainSidebar">
+        <!-- Khối Bật GPS Nhân Viên -->
+        <div id="staffPanel">
+          <span id="trackingStatusBadge" class="badge badge-offline">Đang Tắt GPS</span>
+          <p id="staffLastSend" style="font-size: 11px; margin: 4px 0; color: #475569;">Chưa gửi tọa độ</p>
+          <button id="toggleTrackBtn" class="btn btn-success" style="padding: 6px; font-size: 12px;" onclick="toggleTracking()">BẬT GPS ĐI TUYẾN</button>
+        </div>
+
+        <div class="tabs">
+          <button class="tab-btn active" onclick="switchTab('realtimeTab', this)">Thời Gian Thực</button>
+          <button class="tab-btn" onclick="switchTab('historyTab', this)">Lịch Sử</button>
+          <button class="tab-btn" id="adminUsersBtn" onclick="switchTab('usersTab', this)">Tài Khoản</button>
+          <button class="tab-btn" id="adminRoutesBtn" onclick="switchTab('routesTab', this)">Tuyến Mẫu</button>
+        </div>
+
+        <!-- TAB 1: REALTIME -->
+        <div id="realtimeTab" class="tab-content active">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <strong style="font-size: 13px;">Danh Sách Vị Trí</strong>
+            <button class="btn" style="width: auto; padding: 4px 8px; font-size: 11px;" onclick="fetchRealtimeData()">Làm Mới</button>
+          </div>
+          <div id="realtimeList" style="font-size: 13px;">Đang tải...</div>
+        </div>
+
+        <!-- TAB 2: LỊCH SỬ -->
+        <div id="historyTab" class="tab-content">
+          <div class="form-group">
+            <label>Chọn Nhân Viên</label>
+            <select id="histStaffSelect"></select>
+          </div>
+          <div class="form-group">
+            <label>Chọn Ngày</label>
+            <input type="date" id="histDateInput">
+          </div>
+          <button class="btn" onclick="fetchHistoryData()">Tra Cứu Lộ Trình</button>
+          <button class="btn btn-success" id="btnMakeTemplate" style="margin-top: 10px; display: none;" onclick="saveCurrentHistoryAsTemplate()">
+            Lưu Thành Tuyến Mẫu
+          </button>
+        </div>
+
+        <!-- TAB 3: QUẢN LÝ USER -->
+        <div id="usersTab" class="tab-content">
+          <strong style="font-size: 13px;">Thêm Tài Khoản</strong>
+          <div class="form-group" style="margin-top: 8px;"><input type="text" id="newFullName" placeholder="Họ và Tên"></div>
+          <div class="form-group"><input type="text" id="newUsername" placeholder="Tên đăng nhập"></div>
+          <div class="form-group"><input type="password" id="newPassword" placeholder="Mật khẩu / PIN"></div>
+          <div class="form-group">
+            <select id="newRole">
+              <option value="STAFF">Nhân Viên</option>
+              <option value="ADMIN">Quản Trị Viên</option>
+            </select>
+          </div>
+          <button class="btn" onclick="createUser()">Tạo Mới</button>
+          <div id="adminUserList" style="margin-top: 12px;"></div>
+        </div>
+
+        <!-- TAB 4: TUYẾN MẪU -->
+        <div id="routesTab" class="tab-content">
+          <div class="form-group">
+            <label>Nhân Viên</label>
+            <select id="routeStaffSelect"></select>
+          </div>
+          <div class="form-group">
+            <label>Thứ Áp Dụng</label>
+            <select id="routeDaySelect">
+              <option value="ALL">Mọi Ngày (Cố định)</option>
+              <option value="MON">Thứ 2</option>
+              <option value="TUE">Thứ 3</option>
+              <option value="WED">Thứ 4</option>
+              <option value="THU">Thứ 5</option>
+              <option value="FRI">Thứ 6</option>
+              <option value="SAT">Thứ 7</option>
+              <option value="SUN">Chủ Nhật</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Tên Tuyến</label>
+            <input type="text" id="routeNameInput" placeholder="VD: Tuyến Huyện Nga Sơn">
+          </div>
+          <div class="form-group">
+            <label>Tọa độ JSON</label>
+            <textarea id="routeWaypointsInput" rows="3" placeholder='[{"lat":19.8,"lng":105.7,"name":"Điểm A"}]'></textarea>
+          </div>
+          <button class="btn" onclick="saveManualRoute()">Lưu Tuyến</button>
+        </div>
+      </div>
+
+      <!-- Bản đồ Leaflet -->
+      <div id="map"></div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // =========================================================================
+    // DÁN LINK GOOGLE APPS SCRIPT WEB APP CỦA BẠN VÀO ĐÂY:
+    const API_URL = "https://script.google.com/macros/s/AKfycbwMXlIe2yROHqWvofBuJ0By2eHOIZ-bThqqdRw3dhL-MGKkmD0RNkQFzq1Fum6tXGNT/exec";
+    // =========================================================================
+
+    let currentUser = null;
+    let map = null;
+    let markers = {};
+    let historyPolyline = null;
+    let watchId = null;
+    let isTracking = false;
+    let lastFetchedHistoryCoords = [];
+    let isSidebarOpen = true;
+
+    async function apiRequest(payload) {
+      const res = await fetch(API_URL, { method: "POST", body: JSON.stringify(payload) });
+      return await res.json();
+    }
+
+    async function handleLogin() {
+      const u = document.getElementById("loginUser").value.trim();
+      const p = document.getElementById("loginPass").value.trim();
+      const msg = document.getElementById("loginMsg");
+      msg.innerText = "Đang xác thực...";
+
+      const res = await apiRequest({ action: "LOGIN", username: u, password: p });
+      if (res.status === "success") {
+        currentUser = res.user;
+        document.getElementById("authScreen").style.display = "none";
+        document.getElementById("appScreen").style.display = "flex";
+        document.getElementById("userBadge").innerText = `${currentUser.full_name}`;
+        initApp();
+      } else {
+        msg.innerText = res.message || "Đăng nhập thất bại.";
+      }
+    }
+
+    function logout() {
+      if (watchId) clearInterval(watchId);
+      currentUser = null;
+      location.reload();
+    }
+
+    function toggleSidebar() {
+      const sidebar = document.getElementById("mainSidebar");
+      isSidebarOpen = !isSidebarOpen;
+      if (window.innerWidth <= 768) {
+        sidebar.classList.toggle("collapsed", !isSidebarOpen);
+      } else {
+        sidebar.style.display = isSidebarOpen ? "flex" : "none";
+      }
+      setTimeout(() => { if (map) map.invalidateSize(); }, 300);
+    }
+
+    function switchTab(tabId, btn) {
+      document.querySelectorAll(".tab-content").forEach(el => el.classList.remove("active"));
+      document.querySelectorAll(".tab-btn").forEach(el => el.classList.remove("active"));
+      document.getElementById(tabId).classList.add("active");
+      btn.classList.add("active");
+      if (tabId === "usersTab") loadUsersList();
+    }
+
+    function initApp() {
+      initMap();
+
+      if (currentUser.role === "ADMIN") {
+        document.getElementById("staffPanel").style.display = "none";
+        loadStaffDropdowns();
+      } else {
+        document.getElementById("adminUsersBtn").style.display = "none";
+        document.getElementById("adminRoutesBtn").style.display = "none";
+        document.getElementById("staffPanel").style.display = "block";
+      }
+
+      fetchRealtimeData();
+      setInterval(fetchRealtimeData, 60000);
+      document.getElementById("histDateInput").value = new Date().toISOString().split("T")[0];
+
+      if (window.innerWidth <= 768) {
+        toggleSidebar();
+      }
+    }
+
+    function initMap() {
+      map = L.map("map").setView([19.8067, 105.7852], 12);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "© OpenStreetMap"
+      }).addTo(map);
+    }
+
+    function toggleTracking() {
+      const btn = document.getElementById("toggleTrackBtn");
+      const badge = document.getElementById("trackingStatusBadge");
+
+      if (!isTracking) {
+        if (!navigator.geolocation) {
+          alert("Trình duyệt không hỗ trợ định vị!");
+          return;
+        }
+
+        isTracking = true;
+        btn.innerText = "DỪNG GPS";
+        btn.className = "btn btn-danger";
+        badge.innerText = "Đang Gửi GPS (1 Phút/Lần)";
+        badge.className = "badge badge-online";
+
+        sendCurrentLocation();
+        watchId = setInterval(sendCurrentLocation, 60000);
+      } else {
+        isTracking = false;
+        clearInterval(watchId);
+        btn.innerText = "BẬT GPS ĐI TUYẾN";
+        btn.className = "btn btn-success";
+        badge.innerText = "Đang Tắt GPS";
+        badge.className = "badge badge-offline";
+      }
+    }
+
+    function sendCurrentLocation() {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          document.getElementById("staffLastSend").innerText = `Đã gửi lúc: ${new Date().toLocaleTimeString()}`;
+
+          await apiRequest({
+            action: "UPDATE_LOCATION",
+            user_id: currentUser.user_id,
+            full_name: currentUser.full_name,
+            lat: lat,
+            lng: lng
+          });
+          fetchRealtimeData();
+        },
+        (err) => {
+          document.getElementById("staffLastSend").innerText = "Lỗi GPS: " + err.message;
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    }
+
+    async function fetchRealtimeData() {
+      const res = await apiRequest({ action: "GET_REALTIME_ALL" });
+      if (res.status === "success") renderRealtimeListAndMarkers(res.data);
+    }
+
+    function renderRealtimeListAndMarkers(data) {
+      const listEl = document.getElementById("realtimeList");
+      listEl.innerHTML = "";
+
+      data.forEach(item => {
+        const isOnline = item.is_online;
+        const markerColor = isOnline ? "#16a34a" : "#64748b";
+        const statusText = isOnline ? "Online" : "Mất tín hiệu";
+
+        if (!markers[item.user_id]) {
+          const marker = L.circleMarker([item.lat, item.lng], {
+            radius: 8,
+            fillColor: markerColor,
+            color: "#ffffff",
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 0.95
+          }).addTo(map);
+
+          // Cố định tên nhân viên nổi trên chấm tròn
+          marker.bindTooltip(item.full_name, {
+            permanent: true,
+            direction: "top",
+            offset: [0, -8],
+            className: "custom-staff-label"
+          });
+
+          marker.bindPopup(`<b>${item.full_name}</b><br>${statusText}<br>${new Date(item.updated_at).toLocaleTimeString()}`);
+          markers[item.user_id] = marker;
+        } else {
+          markers[item.user_id].setLatLng([item.lat, item.lng]);
+          markers[item.user_id].setStyle({ fillColor: markerColor });
+          markers[item.user_id].setTooltipContent(item.full_name);
+        }
+
+        const div = document.createElement("div");
+        div.style.padding = "8px";
+        div.style.borderBottom = "1px solid #f1f5f9";
+        div.style.cursor = "pointer";
+        div.innerHTML = `
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <strong>${item.full_name}</strong>
+            <span class="badge ${isOnline ? 'badge-online' : 'badge-offline'}">${statusText}</span>
+          </div>
+        `;
+        div.onclick = () => {
+          map.setView([item.lat, item.lng], 15);
+          markers[item.user_id].openPopup();
+          if (window.innerWidth <= 768) toggleSidebar();
+        };
+        listEl.appendChild(div);
+      });
+    }
+
+    async function fetchHistoryData() {
+      const staffId = document.getElementById("histStaffSelect").value;
+      const dateStr = document.getElementById("histDateInput").value;
+      if (!staffId || !dateStr) return alert("Vui lòng chọn đủ thông tin!");
+
+      const res = await apiRequest({ action: "GET_HISTORY", user_id: staffId, date_str: dateStr });
+      if (res.status === "success") {
+        if (historyPolyline) map.removeLayer(historyPolyline);
+        lastFetchedHistoryCoords = res.data;
+        if (lastFetchedHistoryCoords.length === 0) {
+          alert("Không có dữ liệu trong ngày này.");
+          document.getElementById("btnMakeTemplate").style.display = "none";
+          return;
+        }
+        const latlngs = lastFetchedHistoryCoords.map(pt => [pt.lat, pt.lng]);
+        historyPolyline = L.polyline(latlngs, { color: "#dc2626", weight: 4 }).addTo(map);
+        map.fitBounds(historyPolyline.getBounds());
+
+        if (currentUser.role === "ADMIN") document.getElementById("btnMakeTemplate").style.display = "block";
+        if (window.innerWidth <= 768) toggleSidebar();
+      }
+    }
+
+    async function saveCurrentHistoryAsTemplate() {
+      const staffId = document.getElementById("histStaffSelect").value;
+      const routeName = prompt("Tên tuyến mẫu:", "Tuyến mẫu di chuyển");
+      if (!routeName) return;
+      const waypoints = lastFetchedHistoryCoords.map((pt, idx) => ({ lat: pt.lat, lng: pt.lng, name: `Điểm ${idx + 1}` }));
+      const res = await apiRequest({ action: "SAVE_ROUTE_SCHEDULE", user_id: staffId, day_of_week: "ALL", route_name: routeName, waypoints: waypoints });
+      alert(res.message);
+    }
+
+    async function loadStaffDropdowns() {
+      const res = await apiRequest({ action: "ADMIN_LIST_USERS" });
+      if (res.status === "success") {
+        const histSelect = document.getElementById("histStaffSelect");
+        const routeSelect = document.getElementById("routeStaffSelect");
+        histSelect.innerHTML = "";
+        routeSelect.innerHTML = "";
+        res.data.forEach(u => {
+          histSelect.innerHTML += `<option value="${u.user_id}">${u.full_name}</option>`;
+          routeSelect.innerHTML += `<option value="${u.user_id}">${u.full_name}</option>`;
+        });
+      }
+    }
+
+    async function loadUsersList() {
+      const res = await apiRequest({ action: "ADMIN_LIST_USERS" });
+      const container = document.getElementById("adminUserList");
+      if (res.status === "success") {
+        let html = "<table><tr><th>Tên</th><th>User</th><th>Vai trò</th><th>Lệnh</th></tr>";
+        res.data.forEach(u => {
+          html += `<tr><td>${u.full_name}</td><td>${u.username}</td><td>${u.role}</td><td><button onclick="changePinPrompt('${u.user_id}')">Đổi PIN</button></td></tr>`;
+        });
+        html += "</table>";
+        container.innerHTML = html;
+      }
+    }
+
+    async function createUser() {
+      const fn = document.getElementById("newFullName").value.trim();
+      const u = document.getElementById("newUsername").value.trim();
+      const p = document.getElementById("newPassword").value.trim();
+      const r = document.getElementById("newRole").value;
+      if (!fn || !u || !p) return alert("Vui lòng điền đủ thông tin!");
+      const res = await apiRequest({ action: "ADMIN_CREATE_USER", full_name: fn, username: u, password: p, role: r });
+      alert(res.message);
+      loadUsersList();
+      loadStaffDropdowns();
+    }
+
+    async function changePinPrompt(userId) {
+      const newPin = prompt("Nhập mật khẩu / PIN mới:");
+      if (newPin) {
+        const res = await apiRequest({ action: "ADMIN_UPDATE_PIN", user_id: userId, new_password: newPin });
+        alert(res.message);
+      }
+    }
+
+    async function saveManualRoute() {
+      const staffId = document.getElementById("routeStaffSelect").value;
+      const day = document.getElementById("routeDaySelect").value;
+      const name = document.getElementById("routeNameInput").value.trim();
+      const rawJson = document.getElementById("routeWaypointsInput").value.trim();
+      try {
+        const waypoints = rawJson ? JSON.parse(rawJson) : [];
+        const res = await apiRequest({ action: "SAVE_ROUTE_SCHEDULE", user_id: staffId, day_of_week: day, route_name: name, waypoints: waypoints });
+        alert(res.message);
+      } catch (e) {
+        alert("Định dạng JSON chưa đúng!");
+      }
+    }
+  </script>
+</body>
+</html>
