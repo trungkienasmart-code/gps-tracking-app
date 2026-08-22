@@ -47,7 +47,7 @@
     /* Map */
     #map { flex: 1; height: 100%; z-index: 1; }
 
-    /* Custom Label trên bản đồ */
+    /* Custom Label tên nhân viên */
     .custom-staff-label {
       background: rgba(15, 23, 42, 0.85) !important;
       color: #ffffff !important;
@@ -63,11 +63,11 @@
       border-top-color: rgba(15, 23, 42, 0.85) !important;
     }
 
-    /* Nút Toggle Menu */
+    /* Nút Toggle Menu ĐÃ ĐƯỢC CHUYỂN SANG BÊN PHẢI */
     #togglePanelBtn {
       position: absolute;
       top: 12px;
-      left: 12px;
+      right: 12px;
       z-index: 1001;
       background: white;
       color: var(--dark);
@@ -93,7 +93,7 @@
     th, td { border: 1px solid var(--border); padding: 6px; text-align: left; }
     th { background: #f1f5f9; }
 
-    /* Responsive Mobile */
+    /* Responsive Mobile CSS */
     @media (max-width: 768px) {
       .sidebar {
         position: absolute;
@@ -118,7 +118,7 @@
   <div id="authScreen">
     <div class="card">
       <h2 style="margin-bottom: 6px; text-align: center; color: var(--primary);">Đăng Nhập</h2>
-      <p style="font-size: 13px; color: #64748b; text-align: center; margin-bottom: 16px;">Hệ thống theo dõi tuyến bán hàng</p>
+      <p style="font-size: 13px; color: #64748b; text-align: center; margin-bottom: 16px;" id="clientLabelDisplay">Hệ thống theo dõi tuyến bán hàng</p>
       <div class="form-group">
         <label>Tên đăng nhập</label>
         <input type="text" id="loginUser" placeholder="Nhập username">
@@ -143,7 +143,7 @@
     </header>
 
     <div class="main-layout">
-      <!-- Nút Ẩn/Hiện Menu -->
+      <!-- Nút Ẩn/Hiện Menu Ở Góc Phải -->
       <button id="togglePanelBtn" onclick="toggleSidebar()">
         <span>☰</span> <span>Ẩn/Hiện Bảng Menu</span>
       </button>
@@ -244,9 +244,21 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
     // =========================================================================
-    // DÁN LINK GOOGLE APPS SCRIPT WEB APP CỦA BẠN VÀO ĐÂY:
-    const API_URL = "https://script.google.com/macros/s/AKfycbwMXlIe2yROHqWvofBuJ0By2eHOIZ-bThqqdRw3dhL-MGKkmD0RNkQFzq1Fum6tXGNT/exec";
+    // DANH SÁCH API THEO KHÁCH HÀNG (SaaS Routing)
+    // Khi có khách hàng mới: Chỉ cần thêm dòng "mã_khách": "link_google_apps_script"
     // =========================================================================
+    const CLIENT_APIS = {
+      "THA Group": "https://script.google.com/macros/s/AKfycbwMXlIe2yROHqWvofBuJ0By2eHOIZ-bThqqdRw3dhL-MGKkmD0RNkQFzq1Fum6tXGNT/exec", // Thay link Apps Script hiện tại vào đây
+      "cty1": "https://script.google.com/macros/s/LINK_SHEET_CONG_TY_1/exec",
+      "cty2": "https://script.google.com/macros/s/LINK_SHEET_CONG_TY_2/exec"
+    };
+
+    // Đọc tham số ?c=... trên thanh địa chỉ URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const companyKey = (urlParams.get("c") || "asmart").toLowerCase();
+
+    // Lấy API_URL tương ứng
+    const API_URL = CLIENT_APIS[companyKey] || CLIENT_APIS["asmart"];
 
     let currentUser = null;
     let map = null;
@@ -256,6 +268,14 @@
     let isTracking = false;
     let lastFetchedHistoryCoords = [];
     let isSidebarOpen = true;
+
+    // Hiển thị tên mã công ty ở màn hình đăng nhập
+    document.addEventListener("DOMContentLoaded", () => {
+      const label = document.getElementById("clientLabelDisplay");
+      if (companyKey !== "asmart") {
+        label.innerText = `Đơn vị: ${companyKey.toUpperCase()}`;
+      }
+    });
 
     async function apiRequest(payload) {
       const res = await fetch(API_URL, { method: "POST", body: JSON.stringify(payload) });
@@ -408,7 +428,6 @@
             fillOpacity: 0.95
           }).addTo(map);
 
-          // Cố định tên nhân viên nổi trên chấm tròn
           marker.bindTooltip(item.full_name, {
             permanent: true,
             direction: "top",
