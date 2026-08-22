@@ -273,9 +273,11 @@
       label.innerText = `Đơn vị: ${companyKey.toUpperCase()}`;
     });
 
-  async function apiRequest(payload) {
+async function apiRequest(payload) {
       const res = await fetch(API_URL, {
         method: "POST",
+        mode: "cors",
+        redirect: "follow",
         headers: {
           "Content-Type": "text/plain;charset=utf-8"
         },
