@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Hệ Thống Định Vị Tuyến Bán Hàng</title>
+  <title>Hệ Thống Định Vị cho nhân sự Bán Hàng</title>
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
@@ -276,8 +276,6 @@
 async function apiRequest(payload) {
       const res = await fetch(API_URL, {
         method: "POST",
-        mode: "cors",
-        redirect: "follow",
         headers: {
           "Content-Type": "text/plain;charset=utf-8"
         },
