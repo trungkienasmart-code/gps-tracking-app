@@ -63,7 +63,7 @@
       border-top-color: rgba(15, 23, 42, 0.85) !important;
     }
 
-    /* Nút Toggle Menu ĐÃ ĐƯỢC CHUYỂN SANG BÊN PHẢI */
+    /* Nút Toggle Menu Ở Bên Phải */
     #togglePanelBtn {
       position: absolute;
       top: 12px;
@@ -93,7 +93,7 @@
     th, td { border: 1px solid var(--border); padding: 6px; text-align: left; }
     th { background: #f1f5f9; }
 
-    /* Responsive Mobile CSS */
+    /* Responsive Mobile */
     @media (max-width: 768px) {
       .sidebar {
         position: absolute;
@@ -143,14 +143,14 @@
     </header>
 
     <div class="main-layout">
-      <!-- Nút Ẩn/Hiện Menu Ở Góc Phải -->
+      <!-- Nút Ẩn/Hiện Menu Bên Phải -->
       <button id="togglePanelBtn" onclick="toggleSidebar()">
         <span>☰</span> <span>Ẩn/Hiện Bảng Menu</span>
       </button>
 
       <!-- Sidebar -->
       <div class="sidebar" id="mainSidebar">
-        <!-- Khối Bật GPS Nhân Viên -->
+        <!-- Khối Định Vị Của Nhân Viên -->
         <div id="staffPanel">
           <span id="trackingStatusBadge" class="badge badge-offline">Đang Tắt GPS</span>
           <p id="staffLastSend" style="font-size: 11px; margin: 4px 0; color: #475569;">Chưa gửi tọa độ</p>
@@ -244,21 +244,20 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
     // =========================================================================
-    // DANH SÁCH API THEO KHÁCH HÀNG (SaaS Routing)
-    // Khi có khách hàng mới: Chỉ cần thêm dòng "mã_khách": "link_google_apps_script"
+    // DANH SÁCH API KHÁCH HÀNG
+    // Khóa mã công ty luôn viết thường, không dấu, không dấu cách
     // =========================================================================
     const CLIENT_APIS = {
-      "THA Group": "https://script.google.com/macros/s/AKfycbwMXlIe2yROHqWvofBuJ0By2eHOIZ-bThqqdRw3dhL-MGKkmD0RNkQFzq1Fum6tXGNT/exec", // Thay link Apps Script hiện tại vào đây
-      "cty1": "https://script.google.com/macros/s/LINK_SHEET_CONG_TY_1/exec",
-      "cty2": "https://script.google.com/macros/s/LINK_SHEET_CONG_TY_2/exec"
+      "thagroup": "https://script.google.com/macros/s/AKfycbwMX1Ie2yR0HqWvofBuJ0By2eHOIZ-bThqqdRw3dhL-MGKkmD0RNkQFzq1Fum6tXGNT/exec",
+      "cty1": "https://script.google.com/macros/s/LINK_SHEET_CONG_TY_1/exec"
     };
 
-    // Đọc tham số ?c=... trên thanh địa chỉ URL
+    // Đọc mã công ty từ URL (?c=...), nếu không có thì mặc định là thagroup
     const urlParams = new URLSearchParams(window.location.search);
-    const companyKey = (urlParams.get("c") || "asmart").toLowerCase();
+    const companyKey = (urlParams.get("c") || "thagroup").toLowerCase().replace(/\s+/g, '');
 
-    // Lấy API_URL tương ứng
-    const API_URL = CLIENT_APIS[companyKey] || CLIENT_APIS["asmart"];
+    // Trỏ đúng API URL
+    const API_URL = CLIENT_APIS[companyKey] || CLIENT_APIS["thagroup"];
 
     let currentUser = null;
     let map = null;
@@ -269,12 +268,9 @@
     let lastFetchedHistoryCoords = [];
     let isSidebarOpen = true;
 
-    // Hiển thị tên mã công ty ở màn hình đăng nhập
     document.addEventListener("DOMContentLoaded", () => {
       const label = document.getElementById("clientLabelDisplay");
-      if (companyKey !== "asmart") {
-        label.innerText = `Đơn vị: ${companyKey.toUpperCase()}`;
-      }
+      label.innerText = `Đơn vị: ${companyKey.toUpperCase()}`;
     });
 
     async function apiRequest(payload) {
@@ -288,15 +284,19 @@
       const msg = document.getElementById("loginMsg");
       msg.innerText = "Đang xác thực...";
 
-      const res = await apiRequest({ action: "LOGIN", username: u, password: p });
-      if (res.status === "success") {
-        currentUser = res.user;
-        document.getElementById("authScreen").style.display = "none";
-        document.getElementById("appScreen").style.display = "flex";
-        document.getElementById("userBadge").innerText = `${currentUser.full_name}`;
-        initApp();
-      } else {
-        msg.innerText = res.message || "Đăng nhập thất bại.";
+      try {
+        const res = await apiRequest({ action: "LOGIN", username: u, password: p });
+        if (res.status === "success") {
+          currentUser = res.user;
+          document.getElementById("authScreen").style.display = "none";
+          document.getElementById("appScreen").style.display = "flex";
+          document.getElementById("userBadge").innerText = `${currentUser.full_name}`;
+          initApp();
+        } else {
+          msg.innerText = res.message || "Đăng nhập thất bại.";
+        }
+      } catch (err) {
+        msg.innerText = "Lỗi kết nối máy chủ Google Sheets. Vui lòng kiểm tra lại mạng.";
       }
     }
 
@@ -338,7 +338,8 @@
       }
 
       fetchRealtimeData();
-      setInterval(fetchRealtimeData, 60000);
+      // Chu kỳ cập nhật bản đồ 30 giây/lần
+      setInterval(fetchRealtimeData, 30000);
       document.getElementById("histDateInput").value = new Date().toISOString().split("T")[0];
 
       if (window.innerWidth <= 768) {
@@ -353,6 +354,9 @@
       }).addTo(map);
     }
 
+    // =========================================================================
+    // ĐIỀU CHỈNH CHU KỲ GỬI TỌA ĐỘ CỦA NHÂN VIÊN: 30 GIÂY/LẦN
+    // =========================================================================
     function toggleTracking() {
       const btn = document.getElementById("toggleTrackBtn");
       const badge = document.getElementById("trackingStatusBadge");
@@ -366,11 +370,12 @@
         isTracking = true;
         btn.innerText = "DỪNG GPS";
         btn.className = "btn btn-danger";
-        badge.innerText = "Đang Gửi GPS (1 Phút/Lần)";
+        badge.innerText = "Đang Gửi GPS (30 Giây/Lần)";
         badge.className = "badge badge-online";
 
         sendCurrentLocation();
-        watchId = setInterval(sendCurrentLocation, 60000);
+        // 30,000 mili-giây = 30 giây (Nếu muốn đổi thành 60 giây thì sửa thành 60000)
+        watchId = setInterval(sendCurrentLocation, 30000);
       } else {
         isTracking = false;
         clearInterval(watchId);
@@ -416,7 +421,8 @@
       data.forEach(item => {
         const isOnline = item.is_online;
         const markerColor = isOnline ? "#16a34a" : "#64748b";
-        const statusText = isOnline ? "Online" : "Mất tín hiệu";
+        const statusText = isOnline ? "Đang di chuyển" : "Mất tín hiệu";
+        const lastTimeStr = new Date(item.updated_at).toLocaleTimeString();
 
         if (!markers[item.user_id]) {
           const marker = L.circleMarker([item.lat, item.lng], {
@@ -435,12 +441,14 @@
             className: "custom-staff-label"
           });
 
-          marker.bindPopup(`<b>${item.full_name}</b><br>${statusText}<br>${new Date(item.updated_at).toLocaleTimeString()}`);
+          // Hiển thị rõ mốc thời gian lần cuối gửi tín hiệu
+          marker.bindPopup(`<b>${item.full_name}</b><br>Trạng thái: ${statusText}<br>Tín hiệu cuối: ${lastTimeStr}`);
           markers[item.user_id] = marker;
         } else {
           markers[item.user_id].setLatLng([item.lat, item.lng]);
           markers[item.user_id].setStyle({ fillColor: markerColor });
           markers[item.user_id].setTooltipContent(item.full_name);
+          markers[item.user_id].setPopupContent(`<b>${item.full_name}</b><br>Trạng thái: ${statusText}<br>Tín hiệu cuối: ${lastTimeStr}`);
         }
 
         const div = document.createElement("div");
@@ -452,6 +460,7 @@
             <strong>${item.full_name}</strong>
             <span class="badge ${isOnline ? 'badge-online' : 'badge-offline'}">${statusText}</span>
           </div>
+          <div style="font-size:11px; color:#64748b; margin-top:2px;">Tín hiệu cuối: ${lastTimeStr}</div>
         `;
         div.onclick = () => {
           map.setView([item.lat, item.lng], 15);
